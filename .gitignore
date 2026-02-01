@@ -1,0 +1,57 @@
+# AndroidVisionAutomator .gitignore
+
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+*.aar
+*.jar
+!gradle-wrapper.jar
+bin/
+gen/
+out/
+release/
+
+# Gradle
+.gradle/
+build/
+local.properties
+
+# Android Studio
+*.iml
+.idea/
+.externalNativeBuild/
+.cxx/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.log
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/

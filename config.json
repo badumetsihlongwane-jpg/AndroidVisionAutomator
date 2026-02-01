@@ -1,0 +1,66 @@
+{
+  "name": "AndroidVisionAutomator",
+  "version": "1.0.0",
+  "description": "AI-driven Android agent (No ADB, No Root) using Accessibility Services",
+  "author": "Autonomous Vision Team",
+  "license": "MIT",
+  "repository": "https://github.com/badumetsihlongwane-jpg/AndroidVisionAutomator",
+  
+  "android": {
+    "minSdk": 24,
+    "targetSdk": 34,
+    "compileSdk": 34
+  },
+
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022",
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "timeout_seconds": 30,
+    "max_retries": 3
+  },
+
+  "safety_policy": {
+    "enabled": true,
+    "allowed_apps": [
+      "com.whatsapp",
+      "com.google.android.apps.messaging",
+      "com.google.android.apps.maps",
+      "com.google.android.youtube",
+      "com.google.android.googlequicksearchbox",
+      "com.google.android.gm"
+    ],
+    "dangerous_actions": [
+      "delete_file",
+      "uninstall_app",
+      "change_system_settings",
+      "send_payment",
+      "factory_reset"
+    ],
+    "sensitive_actions": [
+      "send_message",
+      "make_call",
+      "send_email",
+      "share_location"
+    ],
+    "max_actions_per_task": 50,
+    "max_retry_count": 3,
+    "require_confirmation_for_dangerous": true
+  },
+
+  "agent": {
+    "max_concurrent_tasks": 1,
+    "task_timeout_seconds": 300,
+    "action_timeout_seconds": 10,
+    "screen_update_interval_ms": 500,
+    "verification_enabled": true,
+    "replanning_enabled": true
+  },
+
+  "logging": {
+    "level": "DEBUG",
+    "file": "logs/automator.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  }
+}
