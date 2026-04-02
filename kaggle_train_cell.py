@@ -37,6 +37,7 @@ DATASET_INTERVAL = "30m"  # "15m" or "30m"
 BARSPERYEAR_15M = 22176
 BARSPERYEAR_30M = 11088
 BARSPERYEAR = BARSPERYEAR_30M if DATASET_INTERVAL == "30m" else BARSPERYEAR_15M
+CHUNKS_PER_YEAR = max(BARSPERYEAR / CHUNK_LEN, 1.0)
 
 TRAIN_START = "2025-02-26"; TRAIN_END = "2025-10-31"
 VAL_START = "2025-11-01"; VAL_END = "2025-12-31"
@@ -287,7 +288,10 @@ class RealPnLLoss(nn.Module):
         return -pnl.mean() + tc + LAMBDA_CVAR * cvar + 0.02 * (pos**2).mean()
 
 
-def sharpe(sig, ret, per_year=BARSPERYEAR):
+def sharpe(sig, ret, per_year=None):
+    # sig/ret are chunk-level values in this script, so annualize by chunks/year.
+    if per_year is None:
+        per_year = CHUNKS_PER_YEAR
     pnl = sig * ret
     mu, sd = pnl.mean(), pnl.std()
     return 0.0 if sd < 1e-8 else (mu / sd) * np.sqrt(per_year)

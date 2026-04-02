@@ -12,6 +12,7 @@ It contains one end-to-end script for:
 4. risk-scaled position computation
 5. train / validate / calibrate / backtest
 6. model + scaler + memory-state artifact export
+7. chunk-level Sharpe annualization (uses chunks/year, not bars/year)
 
 ## How to use in Kaggle
 
