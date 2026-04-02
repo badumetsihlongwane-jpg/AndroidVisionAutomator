@@ -306,7 +306,7 @@ def evaluate(model, loader, criterion, init_states=None):
     model.eval()
     prev_states = init_states
     prev_pos = None
-    losses, S, R = [], [], []
+    losses, S, R, PABS = [], [], [], []
     for x, r in loader:
         x, r = x.to(DEVICE), r.to(DEVICE)
         out = model(x, prev_states=prev_states)
@@ -315,13 +315,16 @@ def evaluate(model, loader, criterion, init_states=None):
         losses.append(loss.item())
         prev_states = [s.detach() for s in out["states"]]
         prev_pos = pos.squeeze(-1).detach()
-        S.append(pos.squeeze(-1).cpu().numpy())
+        pos_np = pos.squeeze(-1).cpu().numpy()
+        S.append(pos_np)
         R.append(r.sum(dim=1).cpu().numpy())
+        PABS.append(np.abs(pos_np))
     if len(S) == 0:
-        return 0.0, 0.0, prev_states, np.zeros((0,NUM_NODES)), np.zeros((0,NUM_NODES))
+        return 0.0, 0.0, 0.0, prev_states, np.zeros((0,NUM_NODES)), np.zeros((0,NUM_NODES))
     S = np.concatenate(S, axis=0)
     R = np.concatenate(R, axis=0)
-    return float(np.mean(losses)), float(sharpe(S.flatten(), R.flatten())), prev_states, S, R
+    mean_abs_pos = float(np.mean(np.concatenate(PABS, axis=0)))
+    return float(np.mean(losses)), float(sharpe(S.flatten(), R.flatten())), mean_abs_pos, prev_states, S, R
 
 
 def train_epoch(model, loader, criterion, optimizer, step):
@@ -391,7 +394,7 @@ model = TitanNLv6Trader(feats_per_node=feats_per_node, d_model=D_MODEL, num_node
 criterion = RealPnLLoss()
 optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
 
-best = 1e9
+best_sharpe = -1e9
 pat = 0
 step = 0
 save_name = "Best_TITAN_V6_KAGGLE.pth"
@@ -400,11 +403,15 @@ print(f"Train chunks={len(train_ds)} | Val chunks={len(val_ds)} | Calib chunks={
 
 for ep in range(EPOCHS):
     tr_loss, step = train_epoch(model, train_loader, criterion, optimizer, step)
-    vl_loss, vl_sh, _, _, _ = evaluate(model, val_loader, criterion)
-    print(f"Epoch {ep+1:02d}/{EPOCHS} | train_loss={tr_loss:.6f} | val_loss={vl_loss:.6f} | val_sharpe={vl_sh:.4f}")
+    vl_loss, vl_sh, vl_pos, _, _, _ = evaluate(model, val_loader, criterion)
+    print(
+        f"Epoch {ep+1:02d}/{EPOCHS} | train_loss={tr_loss:.6f} | "
+        f"val_loss={vl_loss:.6f} | val_sharpe={vl_sh:.4f} | val_|pos|={vl_pos:.4f}"
+    )
 
-    if vl_loss < best:
-        best = vl_loss
+    # Early stop/checkpoint on trading objective (Sharpe), not near-zero loss.
+    if vl_sh > best_sharpe + 1e-4:
+        best_sharpe = vl_sh
         pat = 0
         torch.save(model.state_dict(), save_name)
     else:
@@ -418,8 +425,8 @@ best_state = torch.load(save_name, map_location=DEVICE)
 model.load_state_dict(best_state)
 
 # chronological priming
-_, _, states, _, _ = evaluate(model, train_loader, criterion)
-_, _, states, _, _ = evaluate(model, val_loader, criterion, init_states=states)
+_, _, _, states, _, _ = evaluate(model, train_loader, criterion)
+_, _, _, states, _, _ = evaluate(model, val_loader, criterion, init_states=states)
 
 # calibration phase (tiny LR)
 calib_opt = optim.AdamW(model.parameters(), lr=ONLINE_LR * 10, weight_decay=1e-4)
@@ -437,8 +444,8 @@ for x, r in calib_loader:
     calib_prev_pos = out["position"].squeeze(-1).detach()
 
 # backtest
-bt_loss, bt_sh, final_states, sig_arr, ret_arr = evaluate(model, back_loader, criterion, init_states=states)
-print(f"Backtest loss={bt_loss:.6f} | Backtest Sharpe={bt_sh:.4f} | Chunks={len(sig_arr)}")
+bt_loss, bt_sh, bt_pos, final_states, sig_arr, ret_arr = evaluate(model, back_loader, criterion, init_states=states)
+print(f"Backtest loss={bt_loss:.6f} | Backtest Sharpe={bt_sh:.4f} | Backtest |pos|={bt_pos:.4f} | Chunks={len(sig_arr)}")
 
 for i, p in enumerate(PAIRS):
     ps = sharpe(sig_arr[:, i], ret_arr[:, i]) if len(sig_arr) else 0.0
