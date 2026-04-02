@@ -32,6 +32,7 @@ PATIENCE = 8
 LR = 2e-4
 ONLINE_LR = 5e-6
 NOISE_STD = 0.01
+POS_REF = 0.05  # reference exposure used to downweight near-flat Sharpe
 
 DATASET_INTERVAL = "30m"  # "15m" or "30m"
 BARSPERYEAR_15M = 22176
@@ -395,6 +396,7 @@ criterion = RealPnLLoss()
 optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
 
 best_sharpe = -1e9
+best_score = -1e9
 pat = 0
 step = 0
 save_name = "Best_TITAN_V6_KAGGLE.pth"
@@ -404,13 +406,17 @@ print(f"Train chunks={len(train_ds)} | Val chunks={len(val_ds)} | Calib chunks={
 for ep in range(EPOCHS):
     tr_loss, step = train_epoch(model, train_loader, criterion, optimizer, step)
     vl_loss, vl_sh, vl_pos, _, _, _ = evaluate(model, val_loader, criterion)
+    exposure_weight = min(vl_pos / POS_REF, 1.0)
+    val_score = vl_sh * exposure_weight
     print(
         f"Epoch {ep+1:02d}/{EPOCHS} | train_loss={tr_loss:.6f} | "
-        f"val_loss={vl_loss:.6f} | val_sharpe={vl_sh:.4f} | val_|pos|={vl_pos:.4f}"
+        f"val_loss={vl_loss:.6f} | val_sharpe={vl_sh:.4f} | "
+        f"val_|pos|={vl_pos:.4f} | val_score={val_score:.4f}"
     )
 
     # Early stop/checkpoint on trading objective (Sharpe), not near-zero loss.
-    if vl_sh > best_sharpe + 1e-4:
+    if val_score > best_score + 1e-4:
+        best_score = val_score
         best_sharpe = vl_sh
         pat = 0
         torch.save(model.state_dict(), save_name)
@@ -445,7 +451,11 @@ for x, r in calib_loader:
 
 # backtest
 bt_loss, bt_sh, bt_pos, final_states, sig_arr, ret_arr = evaluate(model, back_loader, criterion, init_states=states)
-print(f"Backtest loss={bt_loss:.6f} | Backtest Sharpe={bt_sh:.4f} | Backtest |pos|={bt_pos:.4f} | Chunks={len(sig_arr)}")
+bt_util = float((np.abs(sig_arr) > 0.02).mean() * 100) if len(sig_arr) else 0.0
+print(
+    f"Backtest loss={bt_loss:.6f} | Backtest Sharpe={bt_sh:.4f} | "
+    f"Backtest |pos|={bt_pos:.4f} | Util%={bt_util:.1f} | Chunks={len(sig_arr)}"
+)
 
 for i, p in enumerate(PAIRS):
     ps = sharpe(sig_arr[:, i], ret_arr[:, i]) if len(sig_arr) else 0.0
