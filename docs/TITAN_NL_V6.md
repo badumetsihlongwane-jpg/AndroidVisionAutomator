@@ -13,6 +13,7 @@ It contains one end-to-end script for:
 5. train / validate / calibrate / backtest
 6. model + scaler + memory-state artifact export
 7. chunk-level Sharpe annualization (uses chunks/year, not bars/year)
+8. leakage-safe supervision (current chunk predicts next chunk returns)
 
 ## How to use in Kaggle
 

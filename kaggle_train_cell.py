@@ -160,13 +160,17 @@ class SeqDataset(Dataset):
         self.X = torch.tensor(X, dtype=torch.float32)
         self.R = torch.tensor(R, dtype=torch.float32)
         self.chunk_len = chunk_len
-        self.n = len(X) // chunk_len
+        # Predict next-chunk returns from current-chunk features to avoid
+        # same-window leakage in offline backtests.
+        self.n = max((len(X) // chunk_len) - 1, 0)
     def __len__(self):
         return self.n
     def __getitem__(self, idx):
         s = idx * self.chunk_len
         e = s + self.chunk_len
-        return self.X[s:e], self.R[s:e]
+        rs = e
+        re = e + self.chunk_len
+        return self.X[s:e], self.R[rs:re]
 
 
 class DeltaMemory(nn.Module):
@@ -371,6 +375,12 @@ train_ds = SeqDataset(scaled[train_idx], future_returns[train_idx], CHUNK_LEN)
 val_ds = SeqDataset(scaled[val_idx], future_returns[val_idx], CHUNK_LEN)
 calib_ds = SeqDataset(scaled[calib_idx], future_returns[calib_idx], CHUNK_LEN)
 back_ds = SeqDataset(scaled[backtest_idx], future_returns[backtest_idx], CHUNK_LEN)
+
+if len(train_ds) == 0 or len(val_ds) == 0:
+    raise ValueError(
+        "Insufficient split size for next-chunk supervision. "
+        "Increase date window or reduce CHUNK_LEN."
+    )
 
 train_loader = DataLoader(train_ds, batch_size=1, shuffle=False, drop_last=True)
 val_loader = DataLoader(val_ds, batch_size=1, shuffle=False)
